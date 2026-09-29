@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpsMind — Memory-Aware Incident Response Assistant</title>
+  <link rel="stylesheet" href="/static/css/tokens.css">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script>
+    if (window.location.protocol === "file:") {
+      window.addEventListener("DOMContentLoaded", function () {
+        var banner = document.createElement("div");
+        banner.style.cssText = "background:#FEF2F2;color:#B91C1C;border-bottom:1px solid #DC2626;padding:14px;text-align:center;font-family:sans-serif;font-size:13px;font-weight:600;position:sticky;top:0;z-index:9999;";
+        banner.innerHTML = "Notice: OpsMind requires its local Python server to run.<br><span style='font-weight:normal;font-size:12px;color:#18181B;'>Please go to your project folder in File Explorer and double-click <strong>Start_OpsMind.bat</strong> to start the application and launch your browser automatically.</span>";
+        document.body.prepend(banner);
+      });
+    }
+  </script>
+</head>
+<body>
+  <!-- Header -->
+  <header class="app-header">
+    <div class="app-brand">
+      <span class="app-title">OpsMind</span>
+      <span class="app-tagline">Memory-Aware Incident Response Assistant</span>
+    </div>
+    <div class="header-actions">
+      <label for="scenario-select" class="text-xs text-muted" style="margin-right: 4px;">SCENARIO:</label>
+      <select id="scenario-select" class="select font-mono" style="width: 280px; height: 28px; font-size: 11px;">
+        <option value="">-- Load Sample Scenario --</option>
+      </select>
+      <button id="btn-reset" type="button" class="btn btn-secondary btn-sm" title="Clear form and start new investigation">Reset</button>
+      <span id="system-status-badge" class="badge badge-neutral">Checking status...</span>
+    </div>
+  </header>
+
+  <!-- Workspace Container -->
+  <main class="app-container">
+    <div class="workspace-grid">
+      
+      <!-- LEFT COLUMN: Incident Input Form, Verified Outcome, Execution Trace -->
+      <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+        
+        <!-- Incident Input Panel -->
+        <section class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Incident Input</h2>
+            <span id="scenario-tag" class="badge badge-neutral text-xs" style="display: none;">SAMPLE DATA</span>
+          </div>
+          <div class="panel-body">
+            <div id="form-error-banner" class="notice-banner error" style="display: none;"></div>
+
+            <form id="incident-form">
+              <div class="form-group">
+                <label class="form-label" for="incident-title">
+                  <span>Incident Title</span>
+                  <span id="title-count" class="text-muted font-mono">0/200</span>
+                </label>
+                <input id="incident-title" class="input" type="text" placeholder="e.g. Checkout API database connection pool saturation" required maxlength="200">
+              </div>
+
+              <div style="display: grid; grid-template-columns: 2fr 1fr; gap: var(--space-3);">
+                <div class="form-group">
+                  <label class="form-label" for="incident-service">Service / Component</label>
+                  <input id="incident-service" class="input font-mono" type="text" placeholder="e.g. checkout-api" required maxlength="100">
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="incident-severity">Severity</label>
+                  <select id="incident-severity" class="select font-mono">
+                    <option value="SEV-1">SEV-1 (Critical)</option>
+                    <option value="SEV-2" selected>SEV-2 (Degraded)</option>
+                    <option value="SEV-3">SEV-3 (Minor)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="incident-desc">
+                  <span>Incident Description</span>
+                  <span id="desc-count" class="text-muted font-mono">0/2000</span>
+                </label>
+                <textarea id="incident-desc" class="textarea" rows="3" placeholder="Describe symptoms, observed impact, and context..." required maxlength="2000"></textarea>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="incident-log">
+                  <span>Log Excerpt (Optional)</span>
+                  <span class="text-muted font-mono">Monospace</span>
+                </label>
+                <textarea id="incident-log" class="textarea font-mono" rows="3" placeholder="Paste relevant log lines, stack traces, or metrics..." maxlength="3000"></textarea>
+              </div>
+
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-top: var(--space-3);">
+                <span class="text-xs text-muted">Press <kbd class="font-mono">Ctrl+Enter</kbd> to submit</span>
+                <button id="btn-investigate" type="submit" class="btn btn-primary">
+                  <span id="investigate-spinner" style="display: none;">[Busy] </span>
+                  <span>Investigate Incident</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <!-- Verified Outcome Form (Phase 5 Workflow) -->
+        <section class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Record Verified Outcome</h2>
+            <div style="display: flex; align-items: center; gap: var(--space-2);">
+              <button id="btn-prefill-outcome" type="button" class="btn btn-secondary btn-sm" style="display: none;" title="Pre-fill sample verified resolution for active scenario">Sample Outcome</button>
+              <span class="text-xs text-muted font-mono">Learning Loop</span>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div id="outcome-notice" class="notice-banner info">
+              Record verified root cause and resolution to store in persistent memory for future investigations.
+            </div>
+            
+            <form id="outcome-form">
+              <div class="form-group">
+                <label class="form-label" for="outcome-service">Service</label>
+                <input id="outcome-service" class="input font-mono" type="text" placeholder="Target service" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="outcome-cause">Confirmed Root Cause</label>
+                <textarea id="outcome-cause" class="textarea" rows="2" placeholder="What actual root cause was confirmed?" required></textarea>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="outcome-fix">Resolution or Fix</label>
+                <textarea id="outcome-fix" class="textarea" rows="2" placeholder="What specific action resolved the issue?" required></textarea>
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3);">
+                <div class="form-group">
+                  <label class="form-label" for="outcome-status">Verification Status</label>
+                  <select id="outcome-status" class="select font-mono">
+                    <option value="VERIFIED" selected>VERIFIED</option>
+                    <option value="UNCONFIRMED">UNCONFIRMED</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="outcome-notes">Notes (Optional)</label>
+                  <input id="outcome-notes" class="input" type="text" placeholder="Telemetry validation window...">
+                </div>
+              </div>
+              <button id="btn-save-outcome" type="submit" class="btn btn-secondary" style="width: 100%; margin-top: var(--space-2);">
+                Save Outcome to Hindsight
+              </button>
+            </form>
+          </div>
+        </section>
+
+        <!-- Real Execution Trace -->
+        <section class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Real Execution Trace</h2>
+            <span class="text-xs text-muted font-mono">Audit Log</span>
+          </div>
+          <div class="panel-body" style="padding: var(--space-2);">
+            <div id="trace-log" class="trace-container">
+              <div class="trace-line"><span class="trace-time">00:00:00</span><span class="trace-stage">[SYSTEM]</span><span class="trace-info">OpsMind workspace initialized. Ready for investigation.</span></div>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- RIGHT COLUMN: Memory Evidence & Structured Investigation Results -->
+      <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+        
+        <!-- Memory Evidence Panel (Hindsight Contribution) -->
+        <section class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">
+              <span>Memory Evidence</span>
+              <span id="memory-count-badge" class="badge badge-neutral">0 memories</span>
+            </h2>
+            <div style="display: flex; align-items: center; gap: var(--space-2);">
+              <button id="btn-seed-memory" type="button" class="btn btn-secondary btn-sm" title="Seed baseline historical incident (INC-2026-0417) into Hindsight">Seed Baseline</button>
+              <span id="hindsight-engine-label" class="text-xs font-mono text-muted">Engine: Hindsight (Vectorize.io)</span>
+            </div>
+          </div>
+          <div id="memory-evidence-container" class="panel-body">
+            <div id="memory-empty-state" class="text-sm text-secondary" style="text-align: center; padding: var(--space-3) 0;">
+              No memories retrieved yet. Submit an incident to query Hindsight memory banks.
+            </div>
+            <div id="memory-list" style="display: none;"></div>
+          </div>
+        </section>
+
+        <!-- Structured Investigation Results Panel -->
+        <section class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Investigation Analysis</h2>
+            <div id="results-provenance-tags" style="display: none; gap: var(--space-1);">
+              <span class="badge badge-provenance input">USER INPUT</span>
+              <span class="badge badge-provenance memory">HINDSIGHT MEMORY</span>
+              <span id="provenance-reasoner-badge" class="badge badge-provenance">LLM REASONING</span>
+            </div>
+          </div>
+          <div class="panel-body">
+            <!-- Empty State -->
+            <div id="results-empty-state" style="text-align: center; padding: var(--space-6) var(--space-4); color: var(--text-secondary);">
+              <div class="font-medium" style="margin-bottom: 4px;">No Active Investigation</div>
+              <div class="text-sm text-muted">Select a sample scenario from the header or enter incident details on the left to begin.</div>
+            </div>
+
+            <!-- Loading State -->
+            <div id="results-loading-state" style="display: none; text-align: center; padding: var(--space-6) var(--space-4); color: var(--text-secondary);">
+              <div class="font-mono text-sm" style="margin-bottom: 8px;">Querying Hindsight memory & generating diagnostic plan...</div>
+              <div class="text-xs text-muted">Synthesizing retrieved past incident context and differentiating facts from hypotheses.</div>
+            </div>
+
+            <!-- Populated State: 6 Structured Sections -->
+            <div id="results-content" style="display: none;">
+              
+              <!-- 1. Incident Summary -->
+              <div class="result-section">
+                <div class="result-section-header">
+                  <span class="result-section-title">1. Incident Summary</span>
+                  <span class="badge badge-provenance input">Input</span>
+                </div>
+                <div id="res-summary" class="text-sm text-primary"></div>
+              </div>
+
+              <!-- 2. Relevant Past Incidents -->
+              <div class="result-section">
+                <div class="result-section-header">
+                  <span class="result-section-title">2. Relevant Past Incidents</span>
+                  <span class="badge badge-provenance memory">Hindsight</span>
+                </div>
+                <div id="res-past-incidents" class="text-sm text-primary"></div>
+              </div>
+
+              <!-- 3. What History Suggests -->
+              <div class="result-section">
+                <div class="result-section-header">
+                  <span class="result-section-title">3. What History Suggests</span>
+                  <span class="badge badge-provenance memory">Memory & Facts</span>
+                </div>
+                <div id="res-history-suggests" class="text-sm text-primary"></div>
+              </div>
+
+              <!-- 4. Recommended Diagnostic Checks -->
+              <div class="result-section">
+                <div class="result-section-header">
+                  <span class="result-section-title">4. Recommended Diagnostic Checks (Safe & Read-Only)</span>
+                  <span class="badge badge-provenance">Reasoning</span>
+                </div>
+                <div id="res-diagnostic-checks"></div>
+              </div>
+
+              <!-- 5. Differences & Uncertainty -->
+              <div class="result-section">
+                <div class="result-section-header">
+                  <span class="result-section-title">5. Differences & Uncertainty</span>
+                  <span class="badge badge-provenance">Caution</span>
+                </div>
+                <div id="res-differences" class="text-sm text-secondary"></div>
+              </div>
+
+              <!-- 6. Suggested Next Step -->
+              <div class="result-section">
+                <div class="result-section-header">
+                  <span class="result-section-title">6. Suggested Next Step</span>
+                  <span class="badge badge-provenance">Action</span>
+                </div>
+                <div id="res-next-step" class="text-sm font-medium text-primary"></div>
+              </div>
+
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+    </div>
+  </main>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
