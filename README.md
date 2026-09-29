@@ -1,2 +1,2 @@
 # OpsMind-project
-AI-powered incident investigation assistant that learns from past incidents using persistent memory to help engineering teams investigate issues faster and make better-informed decisions.
+OpsMind is an AI-powered incident investigation assistant that learns from past incidents using persistent memory. It retrieves relevant history, helps engineers investigate new issues, and improves its guidance through feedback—keeping humans in control of every decision.
